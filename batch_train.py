@@ -58,7 +58,7 @@ if not DATA_CONFIG:
 
 FRACTION = 0.1  # Train on 1/3 of the dataset to speed up training
 
-def run_training_step(model_info, batch_size=BATCH_SIZE, cache=False):
+def run_training_step(model_info, batch_size=BATCH_SIZE, epochs=EPOCHS, fraction=FRACTION, device=None, cache=False):
     model_name = model_info["name"]
     model_file = model_info["file"]
     
@@ -94,10 +94,11 @@ def run_training_step(model_info, batch_size=BATCH_SIZE, cache=False):
             teacher_name=model_file,
             student_name=target_student_architecture,
             data_cfg=DATA_CONFIG,
-            epochs=EPOCHS,
+            epochs=epochs,
             batch_size=batch_size,
             run_name=student_name,
-            fraction=FRACTION,
+            fraction=fraction,
+            device=device,
             cache=True
         )
         trainer.train()
@@ -136,9 +137,9 @@ def run_training_step(model_info, batch_size=BATCH_SIZE, cache=False):
                 
             # 2. Latency Benchmarking
             print("Running latency benchmark...")
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            eval_model.to(device)
-            dummy_input = torch.zeros(1, 3, 640, 640).to(device)
+            eval_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            eval_model.to(eval_device)
+            dummy_input = torch.zeros(1, 3, 640, 640).to(eval_device)
             # Warmup
             for _ in range(10):
                 _ = eval_model(dummy_input, verbose=False)
@@ -165,7 +166,10 @@ def main():
     parser = argparse.ArgumentParser(description="Batch Train Student Models")
     parser.add_argument("--model", type=str, default="all", choices=["all", "yolov8", "yolov11", "yolov26"], help="Which model to train")
     parser.add_argument("--teacher", type=str, default=None, help="Explicit path to a teacher model to use (only use if training a single model type).")
-    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help=f"Batch size for training (default: {BATCH_SIZE}). Increase if you have more GPU memory.")
+    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help=f"Batch size for training (default: {BATCH_SIZE}).")
+    parser.add_argument("--epochs", type=int, default=EPOCHS, help=f"Epochs for training (default: {EPOCHS}).")
+    parser.add_argument("--fraction", type=float, default=FRACTION, help=f"Fraction of dataset to use (default: {FRACTION}).")
+    parser.add_argument("--device", type=str, default=None, help="Device to use for training (e.g. '0' or 'cpu').")
     args = parser.parse_args()
 
     selected_models = []
@@ -194,7 +198,13 @@ def main():
     results = {}
     
     for model_info in selected_models:
-        success = run_training_step(model_info, batch_size=args.batch_size)
+        success = run_training_step(
+            model_info, 
+            batch_size=args.batch_size,
+            epochs=args.epochs,
+            fraction=args.fraction,
+            device=args.device
+        )
         results[model_info["name"]] = "Success" if success else "Failed"
         
         # Optional: Sleep briefly between runs to let GPU cool?

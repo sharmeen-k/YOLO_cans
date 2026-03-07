@@ -169,8 +169,8 @@ class BatchedBlurAugment:
         # Reshape back to [num_to_blur, C, H, W]
         blurred_out = blurred_reshaped.view(num_to_blur, C, H, W)
         
-        # Put back into the batch
-        blurred_images[blur_indices] = blurred_out
+        # Put back into the batch, casting to original dtype if needed (e.g. AMP float16)
+        blurred_images[blur_indices] = blurred_out.to(blurred_images.dtype)
             
         return blurred_images
 
